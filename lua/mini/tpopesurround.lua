@@ -692,11 +692,6 @@ MiniSurround.config = {
   -- Number of lines within which surrounding is searched
   n_lines = 20,
 
-  -- Whether to respect selection type:
-  -- - Place surroundings on separate lines in linewise mode.
-  -- - Place surroundings on each line in blockwise mode.
-  respect_selection_type = false,
-
   -- How to search for surrounding (first inside current line, then inside
   -- neighborhood). One of 'cover', 'cover_or_next', 'cover_or_prev',
   -- 'cover_or_nearest', 'next', 'prev', 'nearest'. For more details,
@@ -742,10 +737,8 @@ MiniSurround.add = function(mode)
   end
 
   -- Add surrounding.
-  -- Possibly deal with linewise and blockwise addition separately
-  local respect_selection_type = H.get_config().respect_selection_type
 
-  if not respect_selection_type or marks.selection_type == 'charwise' then
+  if marks.selection_type == 'charwise' then
     -- Begin insert from right to not break column numbers
     -- Insert after the right mark (`+ 1` is for that)
     H.region_replace({ from = { line = marks.second.line, col = marks.second.col + 1 } }, surr_info.right)
@@ -809,10 +802,8 @@ MiniSurround.delete = function()
   local from = surr.left.from
   H.set_cursor(from.line, from.col)
 
-  -- Possibly tweak deletion of linewise surrounding. Should act as reverse to
-  -- linewise addition.
-  if not H.get_config().respect_selection_type then return end
-
+  -- Tweak deletion of linewise surrounding. Should act as reverse to linewise
+  -- addition.
   local from_line, to_line = surr.left.from.line, surr.right.from.line
   local is_linewise_delete = from_line < to_line and H.is_line_blank(from_line) and H.is_line_blank(to_line)
   if is_linewise_delete then
@@ -1148,7 +1139,6 @@ H.setup_config = function(config)
   H.check_type('highlight_duration', config.highlight_duration, 'number')
   H.check_type('mappings', config.mappings, 'table')
   H.check_type('n_lines', config.n_lines, 'number')
-  H.check_type('respect_selection_type', config.respect_selection_type, 'boolean')
   H.validate_search_method(config.search_method)
   H.check_type('silent', config.silent, 'boolean')
 
