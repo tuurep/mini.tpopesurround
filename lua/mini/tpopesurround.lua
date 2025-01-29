@@ -677,13 +677,27 @@ MiniSurround.config = {
 
   -- Module mappings. Use `''` (empty string) to disable one.
   mappings = {
-    add = 'sa', -- Add surrounding in Normal and Visual modes
-    delete = 'sd', -- Delete surrounding
-    find = 'sf', -- Find surrounding (to the right)
-    find_left = 'sF', -- Find surrounding (to the left)
-    highlight = 'sh', -- Highlight surrounding
-    replace = 'sr', -- Replace surrounding
-    update_n_lines = 'sn', -- Update `n_lines`
+    add = 'ys', -- Add surrounding in Normal mode
+    replace = 'cs', -- Replace surrounding
+    delete = 'ds', -- Delete surrounding
+
+    add_visual = 'S', -- Add surrounding in Visual mode
+
+    -- tpope special case:
+    -- Add surrounding in current line, ignoring leading whitespace
+    -- Or with [count], closes at the end of [count]th line
+    add_line = 'yss',
+
+    -- tpope operators: 
+    -- Add/replace surrounding, place the text on its own line and indent
+    add_and_indent = 'yS',
+    replace_and_indent = 'cS',
+
+    find = '', -- Find surrounding (to the right)
+    find_left = '', -- Find surrounding (to the left)
+
+    highlight = '', -- Highlight surrounding
+    update_n_lines = '', -- Update `n_lines`
 
     suffix_last = 'l', -- Suffix to search with "prev" method
     suffix_next = 'n', -- Suffix to search with "next" method
@@ -696,7 +710,7 @@ MiniSurround.config = {
   -- neighborhood). One of 'cover', 'cover_or_next', 'cover_or_prev',
   -- 'cover_or_nearest', 'next', 'prev', 'nearest'. For more details,
   -- see `:h MiniSurround.config`.
-  search_method = 'cover',
+  search_method = 'cover_or_next',
 
   -- Whether to disable showing non-error feedback
   -- This also affects (purely informational) helper messages shown after
@@ -1143,11 +1157,19 @@ H.setup_config = function(config)
   H.check_type('silent', config.silent, 'boolean')
 
   H.check_type('mappings.add', config.mappings.add, 'string')
+  H.check_type('mappings.replace', config.mappings.replace, 'string')
   H.check_type('mappings.delete', config.mappings.delete, 'string')
+
+  H.check_type('mappings.add_visual', config.mappings.add_visual, 'string')
+
+  H.check_type('mappings.add_line', config.mappings.add_line, 'string')
+
+  H.check_type('mappings.add_and_indent', config.mappings.add_and_indent, 'string')
+  H.check_type('mappings.replace_and_indent', config.mappings.replace_and_indent, 'string')
+
   H.check_type('mappings.find', config.mappings.find, 'string')
   H.check_type('mappings.find_left', config.mappings.find_left, 'string')
   H.check_type('mappings.highlight', config.mappings.highlight, 'string')
-  H.check_type('mappings.replace', config.mappings.replace, 'string')
   H.check_type('mappings.update_n_lines', config.mappings.update_n_lines, 'string')
 
   H.check_type('mappings.suffix_last', config.mappings.suffix_last, 'string')
