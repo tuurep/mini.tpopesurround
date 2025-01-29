@@ -679,13 +679,31 @@ MiniSurround.config = {
 
   -- Module mappings. Use `''` (empty string) to disable one.
   mappings = {
-    add = 'sa', -- Add surrounding in Normal and Visual modes
-    delete = 'sd', -- Delete surrounding
-    find = 'sf', -- Find surrounding (to the right)
-    find_left = 'sF', -- Find surrounding (to the left)
-    highlight = 'sh', -- Highlight surrounding
-    replace = 'sr', -- Replace surrounding
-    update_n_lines = 'sn', -- Update `n_lines`
+    add = 'ys', -- Add surrounding in Normal mode
+    replace = 'cs', -- Replace surrounding
+    delete = 'ds', -- Delete surrounding
+
+    add_visual = 'S', -- Add surrounding in Visual mode
+
+    -- tpope operators: 
+    -- Add/replace surrounding, place the text on its own line and indent
+    add_and_indent = 'yS',
+    replace_and_indent = 'cS',
+
+    -- tpope special case:
+    -- Add surrounding in current line, ignoring leading whitespace
+    -- Or with [count], closes at the end of [count]th line
+    add_line = 'yss',
+
+    -- tpope variant:
+    -- Like `add_and_indent` but handle the count like `add_line`
+    add_line_and_indent = 'ySS',
+
+    find = '', -- Find surrounding (to the right)
+    find_left = '', -- Find surrounding (to the left)
+
+    highlight = '', -- Highlight surrounding
+    update_n_lines = '', -- Update `n_lines`
 
     suffix_last = 'l', -- Suffix to search with "prev" method
     suffix_next = 'n', -- Suffix to search with "next" method
@@ -694,16 +712,11 @@ MiniSurround.config = {
   -- Number of lines within which surrounding is searched
   n_lines = 20,
 
-  -- Whether to respect selection type:
-  -- - Place surroundings on separate lines in linewise mode.
-  -- - Place surroundings on each line in blockwise mode.
-  respect_selection_type = false,
-
   -- How to search for surrounding (first inside current line, then inside
   -- neighborhood). One of 'cover', 'cover_or_next', 'cover_or_prev',
   -- 'cover_or_nearest', 'next', 'prev', 'nearest'. For more details,
   -- see `:h MiniSurround.config`.
-  search_method = 'cover',
+  search_method = 'cover_or_next',
 
   -- Whether to disable showing non-error feedback
   -- This also affects (purely informational) helper messages shown after
@@ -744,17 +757,31 @@ MiniSurround.add = function(mode)
   end
 
   -- Add surrounding.
-  -- Possibly deal with linewise and blockwise addition separately
-  local respect_selection_type = H.get_config().respect_selection_type
 
-  if not respect_selection_type or marks.selection_type == 'charwise' then
+  if marks.selection_type == 'charwise' then
     -- Begin insert from right to not break column numbers
     -- Insert after the right mark (`+ 1` is for that)
-    H.region_replace({ from = { line = marks.second.line, col = marks.second.col + 1 } }, surr_info.right)
-    H.region_replace({ from = marks.first }, surr_info.left)
+    if H.cache.indent then
+      -- tpope variant
+      local from_line, to_line = marks.first.line, marks.second.line
 
-    -- Set cursor to be on the right of left surrounding
-    H.set_cursor(marks.first.line, marks.first.col + surr_info.left:len())
+      local init_indent = H.get_range_indent(from_line, to_line)
+
+      local left = surr_info.left .. '\n' .. init_indent
+      local right = '\n' .. init_indent .. surr_info.right
+
+      H.region_replace({ from = { line = marks.second.line, col = marks.second.col + 1 } }, right)
+      H.region_replace({ from = marks.first }, left)
+
+      H.shift_indent('>', marks.first.line + 1, marks.second.line + 1)
+
+      H.set_cursor_nonblank(from_line + 1)
+    else
+      H.region_replace({ from = { line = marks.second.line, col = marks.second.col + 1 } }, surr_info.right)
+      H.region_replace({ from = marks.first }, surr_info.left)
+
+      H.set_cursor(marks.first.line, marks.first.col + surr_info.left:len())
+    end
 
     return
   end
@@ -764,7 +791,11 @@ MiniSurround.add = function(mode)
 
     -- Save current range indent and indent surrounded lines
     local init_indent = H.get_range_indent(from_line, to_line)
-    H.shift_indent('>', from_line, to_line)
+
+    -- tpope variants
+    if H.cache.indent or mode == 'visual' then
+      H.shift_indent('>', from_line, to_line)
+    end
 
     -- Put cursor on the start of first surrounded line
     H.set_cursor_nonblank(from_line)
@@ -795,6 +826,43 @@ MiniSurround.add = function(mode)
   end
 end
 
+--- Add surrounding on line
+---
+--- No need to use it directly, everything is setup in |MiniSurround.setup|.
+MiniSurround.add_line = function()
+  -- tpope special case: count in [count]yss extends textobject instead of
+  -- duplicating surroundings
+  local count = H.cache.count or vim.v.count1
+
+  local from_line = vim.fn.line(".")
+  local to_line = math.min(from_line + count - 1, vim.fn.line("$"))
+
+  local _, from_col = vim.fn.getline(from_line):find('^%s*')
+  local to_col = vim.fn.getline(to_line):find('%s*$') - 2
+
+  local first = { line = from_line, col = from_col + 1 }
+  local second = { line = to_line, col = to_col + 1}
+
+  local surr_info = H.get_surround_spec('output', true)
+  if surr_info == nil then return '<Esc>' end
+
+  if H.cache.indent then
+    local init_indent = H.get_range_indent(from_line, to_line)
+
+    H.shift_indent('>', from_line, to_line)
+
+    H.set_cursor_nonblank(from_line)
+
+    vim.fn.append(to_line, init_indent .. surr_info.right)
+    vim.fn.append(from_line - 1, init_indent .. surr_info.left)
+  else
+    H.region_replace({ from = { line = second.line, col = second.col + 1 } }, surr_info.right)
+    H.region_replace({ from = first }, surr_info.left)
+
+    H.set_cursor(first.line, first.col + surr_info.left:len())
+  end
+end
+
 --- Delete surrounding
 ---
 --- No need to use it directly, everything is setup in |MiniSurround.setup|.
@@ -811,15 +879,15 @@ MiniSurround.delete = function()
   local from = surr.left.from
   H.set_cursor(from.line, from.col)
 
-  -- Possibly tweak deletion of linewise surrounding. Should act as reverse to
-  -- linewise addition.
-  if not H.get_config().respect_selection_type then return end
-
+  -- Tweak deletion of linewise surrounding. Should act as reverse to linewise
+  -- addition.
   local from_line, to_line = surr.left.from.line, surr.right.from.line
   local is_linewise_delete = from_line < to_line and H.is_line_blank(from_line) and H.is_line_blank(to_line)
   if is_linewise_delete then
     -- Dedent surrounded lines
-    H.shift_indent('<', from_line, to_line)
+    -- TODO: only dedent when necessary
+    --
+    -- H.shift_indent('<', from_line, to_line)
 
     -- Place cursor on first surrounded line
     H.set_cursor_nonblank(from_line + 1)
@@ -843,13 +911,28 @@ MiniSurround.replace = function()
   local new_surr_info = H.get_surround_spec('output', true)
   if new_surr_info == nil then return '<Esc>' end
 
-  -- Replace by parts starting from right to not break column numbers
-  H.region_replace(surr.right, new_surr_info.right)
-  H.region_replace(surr.left, new_surr_info.left)
-
-  -- Set cursor to be on the right of left surrounding
   local from = surr.left.from
-  H.set_cursor(from.line, from.col + new_surr_info.left:len())
+  local to = surr.right.to
+
+  -- Replace by parts starting from right to not break column numbers
+  if H.cache.indent then
+    -- tpope variant
+    local init_indent = H.get_range_indent(from.line, to.line)
+
+    local left = new_surr_info.left .. '\n' .. init_indent
+    local right = '\n' .. init_indent .. new_surr_info.right
+
+    H.region_replace(surr.right, right)
+    H.region_replace(surr.left, left)
+
+    H.shift_indent('>', from.line + 1, to.line + 1)
+    H.set_cursor_nonblank(from.line + 1)
+  else
+    H.region_replace(surr.right, new_surr_info.right)
+    H.region_replace(surr.left, new_surr_info.left)
+
+    H.set_cursor(from.line, from.col + new_surr_info.left:len())
+  end
 end
 
 --- Find surrounding
@@ -1135,6 +1218,7 @@ H.builtin_surroundings = {
 -- - 'output' - surround info for adding (in 'add' and 'replace' end).
 -- - 'direction' - direction in which `MiniSurround.find()` should go.
 --   Currently is not used for dot-repeat, but for easier mappings.
+-- - 'indent' - whether operator should do a tpope-style indent.
 -- - 'search_method' - search method.
 -- - 'msg_shown' - whether helper message was shown.
 H.cache = {}
@@ -1149,16 +1233,24 @@ H.setup_config = function(config)
   H.check_type('highlight_duration', config.highlight_duration, 'number')
   H.check_type('mappings', config.mappings, 'table')
   H.check_type('n_lines', config.n_lines, 'number')
-  H.check_type('respect_selection_type', config.respect_selection_type, 'boolean')
   H.validate_search_method(config.search_method)
   H.check_type('silent', config.silent, 'boolean')
 
   H.check_type('mappings.add', config.mappings.add, 'string')
+  H.check_type('mappings.replace', config.mappings.replace, 'string')
   H.check_type('mappings.delete', config.mappings.delete, 'string')
+
+  H.check_type('mappings.add_and_indent', config.mappings.add_and_indent, 'string')
+  H.check_type('mappings.replace_and_indent', config.mappings.replace_and_indent, 'string')
+
+  H.check_type('mappings.add_visual', config.mappings.add_visual, 'string')
+
+  H.check_type('mappings.add_line', config.mappings.add_line, 'string')
+  H.check_type('mappings.add_line_and_indent', config.mappings.add_line_and_indent, 'string')
+
   H.check_type('mappings.find', config.mappings.find, 'string')
   H.check_type('mappings.find_left', config.mappings.find_left, 'string')
   H.check_type('mappings.highlight', config.mappings.highlight, 'string')
-  H.check_type('mappings.replace', config.mappings.replace, 'string')
   H.check_type('mappings.update_n_lines', config.mappings.update_n_lines, 'string')
 
   H.check_type('mappings.suffix_last', config.mappings.suffix_last, 'string')
@@ -1177,16 +1269,25 @@ H.apply_config = function(config)
   -- Make regular mappings
   local m = config.mappings
 
-  expr_map(m.add,     H.make_operator('add', nil, true), 'Add surrounding')
-  expr_map(m.delete,  H.make_operator('delete'),         'Delete surrounding')
-  expr_map(m.replace, H.make_operator('replace'),        'Replace surrounding')
+  expr_map(m.add,     H.make_operator('add', false, true, nil), 'Add surrounding')
+  expr_map(m.replace, H.make_operator('replace'),               'Replace surrounding')
+  expr_map(m.delete,  H.make_operator('delete'),                'Delete surrounding')
+
+  expr_map(m.add_and_indent, H.make_operator('add', true, true, nil),
+           'Add surrounding, place text on its own line and indent')
+  expr_map(m.replace_and_indent, H.make_operator('replace', true),
+           'Replace surrounding, place text on its own line and indent')
+
+  expr_map(m.add_line,            H.make_operator('add_line'), 'Add surrounding on line')
+  expr_map(m.add_line_and_indent, H.make_operator('add_line', true),
+           'Add surroundings on separate lines and indent line')
 
   map(m.find,      H.make_action('find', 'right'), 'Find right surrounding')
   map(m.find_left, H.make_action('find', 'left'),  'Find left surrounding')
   map(m.highlight, H.make_action('highlight'),     'Highlight surrounding')
 
   H.map('n', m.update_n_lines, MiniSurround.update_n_lines, { desc = 'Update `MiniSurround.config.n_lines`' })
-  H.map('x', m.add, [[:<C-u>lua MiniSurround.add('visual')<CR>]], { desc = 'Add surrounding to selection' })
+  H.map('x', m.add_visual, [[:<C-u>lua MiniSurround.add('visual')<CR>]], { desc = 'Add surrounding to selection' })
 
   -- Make extended mappings
   local suffix_expr_map = function(lhs, suffix, rhs, desc)
@@ -1244,7 +1345,7 @@ H.validate_search_method = function(x)
 end
 
 -- Mappings -------------------------------------------------------------------
-H.make_operator = function(task, search_method, ask_for_textobject)
+H.make_operator = function(task, indent, ask_for_textobject, search_method)
   return function()
     if H.is_disabled() then
       -- Using `<Esc>` helps to stop moving cursor caused by current
@@ -1252,7 +1353,7 @@ H.make_operator = function(task, search_method, ask_for_textobject)
       return [[\<Esc>]]
     end
 
-    H.cache = { count = vim.v.count1, search_method = search_method }
+    H.cache = { count = vim.v.count1, indent = indent, search_method = search_method }
 
     vim.o.operatorfunc = 'v:lua.MiniSurround.' .. task
 
