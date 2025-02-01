@@ -800,6 +800,70 @@ MiniSurround.add = function(mode)
   end
 end
 
+--- Add surrounding on line
+---
+--- No need to use it directly, everything is setup in |MiniSurround.setup|.
+MiniSurround.add_line = function()
+  local n_lines = H.cache.count or vim.v.count1
+
+  local pos1 = vim.api.nvim_buf_get_mark(0, '[')
+  local pos2 = vim.api.nvim_buf_get_mark(0, ']')
+
+  -- `yss` tpope special case:
+  -- The first count denotes how many whole lines to operate on
+  pos2[1] = math.min(
+    pos2[1] + n_lines - 1,
+    vim.api.nvim_buf_line_count(0) -- If lines exceed total lines, close
+  )                                -- surrounding at the end of file.
+
+  local _, line1_indent = vim.fn.getline(pos1[1]):find('^%s*')
+  local    line2_end    = vim.fn.getline(pos2[1]):find('%s*$') - 2
+
+  -- Make columns 1-based instead of 0-based. This is needed because
+  -- `nvim_buf_get_mark()` returns the first 0-based byte of mark symbol and
+  -- all the following operations are done with Lua's 1-based indexing.
+  local first = {
+    line = pos1[1],
+    col = line1_indent + 1
+  }
+  local second = {
+    line = pos2[1],
+    col = line2_end + 1
+  }
+
+  -- Tweak second position to respect multibyte characters. Reasoning:
+  -- - These positions will be used with `region_replace()` to add some text,
+  --   which operates on byte columns.
+  -- - For the first mark we want the first byte of symbol, then text will be
+  --   insert to the left of the mark.
+  -- - For the second mark we want last byte of symbol. To add surrounding to
+  --   the right, use `pos2[2] + 1`.
+  local line2 = vim.fn.getline(second.line)
+  local utf_index = vim.str_utfindex(line2, math.min(#line2, second.col))
+  second.col = vim.str_byteindex(line2, utf_index)
+
+  local surr_info = H.get_surround_spec('output', true)
+
+  H.region_replace({ from = { line = second.line, col = second.col + 1 } }, surr_info.right)
+  H.region_replace({ from = first }, surr_info.left)
+
+  H.set_cursor(first.line, first.col + surr_info.left:len())
+end
+
+-- Add surrounding, place the text on its own line and indent
+---
+--- No need to use it directly, everything is setup in |MiniSurround.setup|.
+MiniSurround.add_and_indent = function()
+  print("add_and_indent WIP")
+end
+
+-- Replace surrounding, place the text on its own line and indent
+---
+--- No need to use it directly, everything is setup in |MiniSurround.setup|.
+MiniSurround.replace_and_indent = function()
+  print("replace_and_indent WIP")
+end
+
 --- Delete surrounding
 ---
 --- No need to use it directly, everything is setup in |MiniSurround.setup|.
@@ -1189,15 +1253,22 @@ H.apply_config = function(config)
   local m = config.mappings
 
   expr_map(m.add,     H.make_operator('add', nil, true), 'Add surrounding')
-  expr_map(m.delete,  H.make_operator('delete'),         'Delete surrounding')
   expr_map(m.replace, H.make_operator('replace'),        'Replace surrounding')
+  expr_map(m.delete,  H.make_operator('delete'),         'Delete surrounding')
+
+  expr_map(m.add_line, H.make_operator('add_line'), 'Add surrounding on line')
+
+  expr_map(m.add_and_indent, H.make_operator('add_and_indent'),
+           'Add surrounding, place text on its own line and indent')
+  expr_map(m.replace_and_indent, H.make_operator('replace_and_indent'),
+           'Replace surrounding, place text on its own line and indent')
 
   map(m.find,      H.make_action('find', 'right'), 'Find right surrounding')
   map(m.find_left, H.make_action('find', 'left'),  'Find left surrounding')
   map(m.highlight, H.make_action('highlight'),     'Highlight surrounding')
 
   H.map('n', m.update_n_lines, MiniSurround.update_n_lines, { desc = 'Update `MiniSurround.config.n_lines`' })
-  H.map('x', m.add, [[:<C-u>lua MiniSurround.add('visual')<CR>]], { desc = 'Add surrounding to selection' })
+  H.map('x', m.add_visual, [[:<C-u>lua MiniSurround.add('visual')<CR>]], { desc = 'Add surrounding to selection' })
 
   -- Make extended mappings
   local suffix_expr_map = function(lhs, suffix, rhs, desc)
