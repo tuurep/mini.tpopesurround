@@ -769,7 +769,6 @@ MiniSurround.add = function(mode)
 
     -- Save current range indent and indent surrounded lines
     local init_indent = H.get_range_indent(from_line, to_line)
-    H.shift_indent('>', from_line, to_line)
 
     -- Put cursor on the start of first surrounded line
     H.set_cursor_nonblank(from_line)
@@ -798,6 +797,39 @@ MiniSurround.add = function(mode)
 
     return
   end
+end
+
+-- Add surrounding, place the text on its own line and indent
+---
+--- No need to use it directly, everything is setup in |MiniSurround.setup|.
+MiniSurround.add_and_indent = function(mode)
+  local marks = H.get_marks_pos(mode)
+
+  local surr_info = H.get_surround_spec('output', true)
+  if surr_info == nil then return '<Esc>' end
+
+  -- Extend parts based on provided `[count]` before operator (if this is not
+  -- from dot-repeat and was done already)
+  if not surr_info.did_count then
+    local count = H.cache.count or vim.v.count1
+    surr_info.left, surr_info.right = surr_info.left:rep(count), surr_info.right:rep(count)
+    surr_info.did_count = true
+  end
+
+  -- Add surrounding.
+
+  -- Save current range indent
+  local init_indent = H.get_range_indent(marks.first.line, marks.second.line)
+  local left = surr_info.left .. '\n' .. init_indent
+  local right = '\n' .. init_indent .. surr_info.right
+
+  H.region_replace({ from = { line = marks.second.line, col = marks.second.col + 1 } }, right)
+  H.region_replace({ from = marks.first }, left)
+
+  H.shift_indent('>', marks.first.line + 1, marks.second.line + 1)
+
+  -- Put cursor on the start of first surrounded line
+  H.set_cursor_nonblank(marks.first.line + 1)
 end
 
 --- Add surrounding on line
@@ -843,18 +875,12 @@ MiniSurround.add_line = function()
   second.col = vim.str_byteindex(line2, utf_index)
 
   local surr_info = H.get_surround_spec('output', true)
+  if surr_info == nil then return '<Esc>' end
 
   H.region_replace({ from = { line = second.line, col = second.col + 1 } }, surr_info.right)
   H.region_replace({ from = first }, surr_info.left)
 
   H.set_cursor(first.line, first.col + surr_info.left:len())
-end
-
--- Add surrounding, place the text on its own line and indent
----
---- No need to use it directly, everything is setup in |MiniSurround.setup|.
-MiniSurround.add_and_indent = function()
-  print("add_and_indent WIP")
 end
 
 -- Replace surrounding, place the text on its own line and indent
@@ -886,7 +912,9 @@ MiniSurround.delete = function()
   local is_linewise_delete = from_line < to_line and H.is_line_blank(from_line) and H.is_line_blank(to_line)
   if is_linewise_delete then
     -- Dedent surrounded lines
-    H.shift_indent('<', from_line, to_line)
+    -- TODO: only dedent when necessary
+    --       
+    -- H.shift_indent('<', from_line, to_line)
 
     -- Place cursor on first surrounded line
     H.set_cursor_nonblank(from_line + 1)
@@ -1258,7 +1286,7 @@ H.apply_config = function(config)
 
   expr_map(m.add_line, H.make_operator('add_line'), 'Add surrounding on line')
 
-  expr_map(m.add_and_indent, H.make_operator('add_and_indent'),
+  expr_map(m.add_and_indent, H.make_operator('add_and_indent', nil, true),
            'Add surrounding, place text on its own line and indent')
   expr_map(m.replace_and_indent, H.make_operator('replace_and_indent'),
            'Replace surrounding, place text on its own line and indent')
