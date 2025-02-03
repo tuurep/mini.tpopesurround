@@ -823,6 +823,7 @@ MiniSurround.add_and_indent = function(mode)
   local left = surr_info.left .. '\n' .. init_indent
   local right = '\n' .. init_indent .. surr_info.right
 
+  -- Replace by parts starting from right to not break column numbers
   H.region_replace({ from = { line = marks.second.line, col = marks.second.col + 1 } }, right)
   H.region_replace({ from = marks.first }, left)
 
@@ -883,13 +884,6 @@ MiniSurround.add_line = function()
   H.set_cursor(first.line, first.col + surr_info.left:len())
 end
 
--- Replace surrounding, place the text on its own line and indent
----
---- No need to use it directly, everything is setup in |MiniSurround.setup|.
-MiniSurround.replace_and_indent = function()
-  print("replace_and_indent WIP")
-end
-
 --- Delete surrounding
 ---
 --- No need to use it directly, everything is setup in |MiniSurround.setup|.
@@ -913,7 +907,7 @@ MiniSurround.delete = function()
   if is_linewise_delete then
     -- Dedent surrounded lines
     -- TODO: only dedent when necessary
-    --       
+    --
     -- H.shift_indent('<', from_line, to_line)
 
     -- Place cursor on first surrounded line
@@ -941,6 +935,38 @@ MiniSurround.replace = function()
   -- Replace by parts starting from right to not break column numbers
   H.region_replace(surr.right, new_surr_info.right)
   H.region_replace(surr.left, new_surr_info.left)
+
+  -- Set cursor to be on the right of left surrounding
+  local from = surr.left.from
+  H.set_cursor(from.line, from.col + new_surr_info.left:len())
+end
+
+-- Replace surrounding, place the text on its own line and indent
+---
+--- No need to use it directly, everything is setup in |MiniSurround.setup|.
+MiniSurround.replace_and_indent = function()
+  -- Find input surrounding region
+  local surr = H.find_surrounding(H.get_surround_spec('input', true))
+  if surr == nil then return '<Esc>' end
+
+  local from = surr.left.from
+  local to = surr.right.to
+
+  -- Save current range indent and indent surrounded lines
+  local init_indent = H.get_range_indent(from.line, to.line)
+
+  -- Get output surround info
+  local new_surr_info = H.get_surround_spec('output', true)
+  if new_surr_info == nil then return '<Esc>' end
+
+  local left = new_surr_info.left .. '\n' .. init_indent
+  local right = '\n' .. init_indent .. new_surr_info.right
+
+  -- Replace by parts starting from right to not break column numbers
+  H.region_replace(surr.right, right)
+  H.region_replace(surr.left, left)
+
+  H.shift_indent('>', from.line + 1, to.line + 1)
 
   -- Set cursor to be on the right of left surrounding
   local from = surr.left.from
