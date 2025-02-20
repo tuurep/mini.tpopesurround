@@ -871,23 +871,36 @@ MiniSurround.delete = function()
   local surr = H.find_surrounding(H.get_surround_spec('input', true))
   if surr == nil then return '<Esc>' end
 
-  -- Delete surrounding region. Begin with right to not break column numbers.
-  H.region_replace(surr.right, {})
-  H.region_replace(surr.left, {})
-
-  -- Set cursor to be on the right of deleted left surrounding
-  local from = surr.left.from
-  H.set_cursor(from.line, from.col)
-
-  -- Tweak deletion of linewise surrounding. Should act as reverse to linewise
-  -- addition.
   local from_line, to_line = surr.left.from.line, surr.right.from.line
-  local is_linewise_delete = from_line < to_line and H.is_line_blank(from_line) and H.is_line_blank(to_line)
-  if is_linewise_delete then
-    -- Dedent surrounded lines
-    -- TODO: only dedent when necessary
-    --
-    -- H.shift_indent('<', from_line, to_line)
+
+  local from_indent = vim.fn.indent(from_line)
+  local to_indent = vim.fn.indent(to_line)
+
+  local left_line = vim.fn.getline(from_line)
+  local right_line = vim.fn.getline(to_line)
+
+  local left_starts_block = left_line:sub(surr.left.to.col + 1):match("^%s*$")
+  local right_ends_block = right_line:sub(1, surr.right.from.col - 1):match("^%s*$")
+
+  local left_own_line = left_line:sub(1, surr.left.from.col - 1):match("^%s*$")
+                    and left_starts_block
+  local right_own_line = right_line:sub(surr.right.to.col + 1):match("^%s*$")
+                    and right_ends_block
+
+  local is_linewise_block = from_line < to_line and left_own_line and right_own_line
+  local is_charwise_block = not is_linewise_block
+                            and from_line < to_line 
+                            and left_starts_block
+                            and right_ends_block
+
+  local block_indent = #H.get_range_indent(from_line + 1, to_line - 1)
+  local is_indented_block = from_indent == to_indent and from_indent < block_indent
+
+  if is_linewise_block then
+    -- Reverse of linewise `add_and_indent`
+    if is_indented_block then
+      H.shift_indent('<', from_line + 1, to_line - 1)
+    end
 
     -- Place cursor on first surrounded line
     H.set_cursor_nonblank(from_line + 1)
@@ -896,6 +909,32 @@ MiniSurround.delete = function()
     local buf_id = vim.api.nvim_get_current_buf()
     vim.fn.deletebufline(buf_id, to_line)
     vim.fn.deletebufline(buf_id, from_line)
+  else
+     -- Delete surrounding region. Begin with right to not break column numbers.
+    H.region_replace(surr.right, {})
+    H.region_replace(surr.left, {})
+
+    if is_charwise_block and is_indented_block then
+      -- Reverse of charwise `add_and_indent` 
+
+      H.shift_indent('<', from_line + 1, to_line - 1)
+
+      -- Join lines
+      
+      local right_join = vim.api.nvim_buf_get_text(0, to_line - 1, to_indent, to_line - 1, -1, {})
+      vim.api.nvim_buf_set_text(0, to_line - 2, -1, to_line - 2, -1, right_join)
+
+      local left_join = vim.api.nvim_buf_get_text(0, from_line, from_indent, from_line, -1, {})
+      vim.api.nvim_buf_set_text(0, from_line - 1, -1, from_line - 1, -1, left_join)
+
+      local buf_id = vim.api.nvim_get_current_buf()
+      vim.fn.deletebufline(buf_id, to_line)
+      vim.fn.deletebufline(buf_id, from_line + 1)
+
+    end
+
+    -- Set cursor to be on the right of deleted left surrounding
+    H.set_cursor(from_line, surr.left.from.col)
   end
 end
 
