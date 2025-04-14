@@ -478,6 +478,15 @@ local H = {}
 ---   require('mini.surround').setup({}) -- replace {} with your config table
 --- <
 MiniSurround.setup = function(config)
+  -- TODO: Remove after Neovim=0.8 support is dropped
+  if vim.fn.has('nvim-0.9') == 0 then
+    vim.notify(
+      '(mini.surround) Neovim<0.9 is soft deprecated (module works but not supported).'
+        .. ' It will be deprecated after next "mini.nvim" release (module might not work).'
+        .. ' Please update your Neovim version.'
+    )
+  end
+
   -- Export module
   _G.MiniSurround = MiniSurround
 
@@ -2134,7 +2143,7 @@ H.region_highlight = function(buf_id, region)
   -- Indexing is zero-based. Rows - end-inclusive, columns - end-exclusive.
   local from_line, from_col, to_line, to_col =
     region.from.line - 1, region.from.col - 1, region.to.line - 1, region.to.col
-  vim.highlight.range(buf_id, ns_id, 'MiniSurround', { from_line, from_col }, { to_line, to_col })
+  H.highlight_range(buf_id, ns_id, 'MiniSurround', { from_line, from_col }, { to_line, to_col })
 end
 
 H.region_unhighlight = function(buf_id, region)
@@ -2388,5 +2397,9 @@ end
 H.islist = vim.fn.has('nvim-0.10') == 1 and vim.islist or vim.tbl_islist
 H.tbl_flatten = vim.fn.has('nvim-0.10') == 1 and function(x) return vim.iter(x):flatten(math.huge):totable() end
   or vim.tbl_flatten
+
+-- TODO: Remove after compatibility with Neovim=0.10 is dropped
+H.highlight_range = function(...) vim.hl.range(...) end
+if vim.fn.has('nvim-0.11') == 0 then H.highlight_range = function(...) vim.highlight.range(...) end end
 
 return MiniSurround
