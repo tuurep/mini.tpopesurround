@@ -481,7 +481,7 @@ MiniSurround.setup = function(config)
   -- TODO: Remove after Neovim=0.8 support is dropped
   if vim.fn.has('nvim-0.9') == 0 then
     vim.notify(
-      '(mini.surround) Neovim<0.9 is soft deprecated (module works but not supported).'
+      '(mini.tpopesurround) Neovim<0.9 is soft deprecated (module works but not supported).'
         .. ' It will be deprecated after next "mini.nvim" release (module might not work).'
         .. ' Please update your Neovim version.'
     )
@@ -1040,7 +1040,7 @@ MiniSurround.user_input = function(prompt, text)
   -- immediately and proceed in main event loop. Couldn't find a relatively
   -- simple way to stop execution of this current function until `ui.input()`'s
   -- callback finished execution.
-  local opts = { prompt = '(mini.surround) ' .. prompt .. ': ', default = text or '' }
+  local opts = { prompt = prompt, default = text or '' }
   vim.cmd('echohl Question')
   -- Use `pcall` to allow `<C-c>` to cancel user input
   local ok, res = pcall(vim.fn.input, opts)
@@ -1201,17 +1201,17 @@ H.builtin_surroundings = {
   -- Derived from user prompt
   ['?'] = {
     input = function()
-      local left = MiniSurround.user_input('Left surrounding')
+      local left = MiniSurround.user_input('Left: ')
       if left == nil or left == '' then return end
-      local right = MiniSurround.user_input('Right surrounding')
+      local right = MiniSurround.user_input('Right: ')
       if right == nil or right == '' then return end
 
       return { vim.pesc(left) .. '().-()' .. vim.pesc(right) }
     end,
     output = function()
-      local left = MiniSurround.user_input('Left surrounding')
+      local left = MiniSurround.user_input('Left: ')
       if left == nil then return end
-      local right = MiniSurround.user_input('Right surrounding')
+      local right = MiniSurround.user_input('Right: ')
       if right == nil then return end
       return { left = left, right = right }
     end,
@@ -1222,7 +1222,7 @@ H.builtin_surroundings = {
   ['f'] = {
     input = { '%f[%w_%.][%w_%.]+%b()', '^.-%(().*()%)$' },
     output = function()
-      local fun_name = MiniSurround.user_input('Function name')
+      local fun_name = MiniSurround.user_input('Function: ')
       if fun_name == nil then return nil end
       return { left = ('%s('):format(fun_name), right = ')' }
     end,
@@ -1231,7 +1231,7 @@ H.builtin_surroundings = {
   ['t'] = {
     input = { '<(%w-)%f[^<%w][^<>]->.-</%1>', '^<.->().*()</[^/]->$' },
     output = function()
-      local tag_full = MiniSurround.user_input('Tag')
+      local tag_full = MiniSurround.user_input('Tag: ')
       if tag_full == nil then return nil end
       local tag_name = tag_full:match('^%S*')
       return { left = '<' .. tag_full .. '>', right = '</' .. tag_name .. '>' }
@@ -2287,7 +2287,7 @@ H.get_neighborhood = function(reference_region, n_neighbors)
 end
 
 -- Utilities ------------------------------------------------------------------
-H.error = function(msg) error('(mini.surround) ' .. msg, 0) end
+H.error = function(msg) error('(mini.tpopesurround) ' .. msg, 0) end
 
 H.check_type = function(name, val, ref, allow_nil)
   if type(val) == ref or (ref == 'callable' and vim.is_callable(val)) or (allow_nil and val == nil) then return end
@@ -2299,7 +2299,7 @@ H.echo = function(msg, is_important)
 
   -- Construct message chunks
   msg = type(msg) == 'string' and { { msg } } or msg
-  table.insert(msg, 1, { '(mini.surround) ', 'WarningMsg' })
+  table.insert(msg, 1, { '(mini.tpopesurround) ', 'WarningMsg' })
 
   -- Avoid hit-enter-prompt
   local max_width = vim.o.columns * math.max(vim.o.cmdheight - 1, 0) + vim.v.echospace
