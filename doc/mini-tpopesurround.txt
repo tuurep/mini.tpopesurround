@@ -499,13 +499,31 @@ Default values:
 
     -- Module mappings. Use `''` (empty string) to disable one.
     mappings = {
-      add = 'sa', -- Add surrounding in Normal and Visual modes
-      delete = 'sd', -- Delete surrounding
-      find = 'sf', -- Find surrounding (to the right)
-      find_left = 'sF', -- Find surrounding (to the left)
-      highlight = 'sh', -- Highlight surrounding
-      replace = 'sr', -- Replace surrounding
-      update_n_lines = 'sn', -- Update `n_lines`
+      add = 'ys', -- Add surrounding in Normal mode
+      replace = 'cs', -- Replace surrounding
+      delete = 'ds', -- Delete surrounding
+
+      add_visual = 'S', -- Add surrounding in Visual mode
+
+      -- tpope operators: 
+      -- Add/replace surrounding, place the text on its own line and indent
+      add_and_indent = 'yS',
+      replace_and_indent = 'cS',
+
+      -- tpope special case:
+      -- Add surrounding in current line, ignoring leading whitespace
+      -- Or with [count], closes at the end of [count]th line
+      add_line = 'yss',
+
+      -- tpope variant:
+      -- Like `add_and_indent` but handle the count like `add_line`
+      add_line_and_indent = 'ySS',
+
+      find = '', -- Find surrounding (to the right)
+      find_left = '', -- Find surrounding (to the left)
+
+      highlight = '', -- Highlight surrounding
+      update_n_lines = '', -- Update `n_lines`
 
       suffix_last = 'l', -- Suffix to search with "prev" method
       suffix_next = 'n', -- Suffix to search with "next" method
@@ -514,16 +532,11 @@ Default values:
     -- Number of lines within which surrounding is searched
     n_lines = 20,
 
-    -- Whether to respect selection type:
-    -- - Place surroundings on separate lines in linewise mode.
-    -- - Place surroundings on each line in blockwise mode.
-    respect_selection_type = false,
-
     -- How to search for surrounding (first inside current line, then inside
     -- neighborhood). One of 'cover', 'cover_or_next', 'cover_or_prev',
     -- 'cover_or_nearest', 'next', 'prev', 'nearest'. For more details,
     -- see `:h MiniSurround.config`.
-    search_method = 'cover',
+    search_method = 'cover_or_next',
 
     -- Whether to disable showing non-error feedback
     -- This also affects (purely informational) helper messages shown after
@@ -714,6 +727,13 @@ Parameters ~
 {mode} `(string)` Mapping mode (normal by default).
 
 ------------------------------------------------------------------------------
+                                                       *MiniSurround.add_line()*
+                           `MiniSurround.add_line`()
+Add surrounding on line
+
+No need to use it directly, everything is setup in |MiniSurround.setup|.
+
+------------------------------------------------------------------------------
                                                          *MiniSurround.delete()*
                             `MiniSurround.delete`()
 Delete surrounding
@@ -854,6 +874,71 @@ See also ~
 |Query:iter_captures()| for how all query captures are iterated in case of
   no 'nvim-treesitter'.
 |MiniAi.gen_spec.treesitter()| for similar 'mini.ai' generator.
+
+------------------------------------------------------------------------------
+                                     *MiniSurround.gen_spec.input.user_prompt()*
+               `MiniSurround.gen_spec.input.user_prompt`({opts})
+User prompt specification for input surrounding
+
+Derived by prompting for left and right edges. Has a default `?` identifier.
+
+Parameters ~
+{opts} `(table|nil)` Options. Allowed fields:
+  - <left_prompt> - string
+    Default: 'Left: '
+  - <right_prompt> - string
+    Default: 'Right: '
+
+Return ~
+`(function)` Function which returns spec derived from user prompts.
+
+------------------------------------------------------------------------------
+                                    *MiniSurround.gen_spec.output.user_prompt()*
+               `MiniSurround.gen_spec.output.user_prompt`({opts})
+User prompt specification for output surrounding
+
+Left and right surroundings are taken from user prompts. Has a default `?`
+identifier.
+
+Parameters ~
+{opts} `(table|nil)` Options. Allowed fields:
+  - <left_prompt> - string
+    Default: 'Left: '
+  - <right_prompt> - string
+    Default: 'Right: '
+
+Return ~
+`(function)` Function which returns spec derived from user prompts.
+
+------------------------------------------------------------------------------
+                                  *MiniSurround.gen_spec.output.function_call()*
+              `MiniSurround.gen_spec.output.function_call`({opts})
+Function call specification for output surrounding
+
+Function name is taken from user prompt. Has a default `f` identifier.
+
+Parameters ~
+{opts} `(table|nil)` Options. Allowed fields:
+  - <prompt> - string
+    Default: 'Function: '
+
+Return ~
+`(function)` Function which returns spec derived from user prompt.
+
+------------------------------------------------------------------------------
+                                            *MiniSurround.gen_spec.output.tag()*
+                   `MiniSurround.gen_spec.output.tag`({opts})
+Tag specification for output surrounding
+
+Tag name is taken from user prompt. Has a default `t` identifier.
+
+Parameters ~
+{opts} `(table|nil)` Options. Allowed fields:
+  - <prompt> - string
+    Default: 'Tag: '
+
+Return ~
+`(function)` Function which returns spec derived from user prompt.
 
 
  vim:tw=78:ts=8:noet:ft=help:norl:
