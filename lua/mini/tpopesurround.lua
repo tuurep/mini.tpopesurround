@@ -1175,6 +1175,98 @@ MiniSurround.gen_spec.input.treesitter = function(captures, opts)
   end
 end
 
+--- User prompt specification for input surrounding
+---
+--- Derived by prompting for left and right edges. Has a default `?` identifier.
+---
+---@param opts table|nil Options. Allowed fields:
+---   - <left_prompt> - string
+---     Default: 'Left: '
+---   - <right_prompt> - string
+---     Default: 'Right: '
+---
+---@return function Function which returns spec derived from user prompts.
+MiniSurround.gen_spec.input.user_prompt = function(opts)
+  opts = opts or {}
+  local left_prompt = opts.left_prompt or 'Left: '
+  local right_prompt = opts.right_prompt or 'Right: '
+
+  return function()
+    local left = MiniSurround.user_input(left_prompt)
+    if left == nil or left == '' then return end
+    local right = MiniSurround.user_input(right_prompt)
+    if right == nil or right == '' then return end
+    return { vim.pesc(left) .. '().-()' .. vim.pesc(right) }
+  end
+end
+
+--- User prompt specification for output surrounding
+---
+--- Left and right surroundings are taken from user prompts. Has a default `?`
+--- identifier.
+---
+---@param opts table|nil Options. Allowed fields:
+---   - <left_prompt> - string
+---     Default: 'Left: '
+---   - <right_prompt> - string
+---     Default: 'Right: '
+---
+---@return function Function which returns spec derived from user prompts.
+MiniSurround.gen_spec.output.user_prompt = function(opts)
+  opts = opts or {}
+  local left_prompt = opts.left_prompt or 'Left: '
+  local right_prompt = opts.right_prompt or 'Right: '
+
+  return function()
+    local left = MiniSurround.user_input(left_prompt)
+    if left == nil then return end
+    local right = MiniSurround.user_input(right_prompt)
+    if right == nil then return end
+    return { left = left, right = right }
+  end
+end
+
+--- Function call specification for output surrounding
+---
+--- Function name is taken from user prompt. Has a default `f` identifier.
+---
+---@param opts table|nil Options. Allowed fields:
+---   - <prompt> - string
+---     Default: 'Function: '
+---
+---@return function Function which returns spec derived from user prompt.
+MiniSurround.gen_spec.output.function_call = function(opts)
+  opts = opts or {}
+  local prompt = opts.prompt or 'Function: '
+
+  return function()
+    local fun_name = MiniSurround.user_input(prompt)
+    if fun_name == nil then return nil end
+    return { left = ('%s('):format(fun_name), right = ')' }
+  end
+end
+
+--- Tag specification for output surrounding
+---
+--- Tag name is taken from user prompt. Has a default `t` identifier.
+---
+---@param opts table|nil Options. Allowed fields:
+---   - <prompt> - string
+---     Default: 'Tag: '
+---
+---@return function Function which returns spec derived from user prompt.
+MiniSurround.gen_spec.output.tag = function(opts)
+  opts = opts or {}
+  local prompt = opts.prompt or 'Tag: '
+
+  return function()
+    local tag_full = MiniSurround.user_input(prompt)
+    if tag_full == nil then return nil end
+    local tag_name = tag_full:match('^%S*')
+    return { left = '<' .. tag_full .. '>', right = '</' .. tag_name .. '>' }
+  end
+end
+
 -- Helper data ================================================================
 -- Module default config
 H.default_config = vim.deepcopy(MiniSurround.config)
@@ -1200,42 +1292,20 @@ H.builtin_surroundings = {
   ['>'] = { input = { '%b<>', '^.().*().$' },       output = { left = '<',  right = '>' } },
   -- Derived from user prompt
   ['?'] = {
-    input = function()
-      local left = MiniSurround.user_input('Left: ')
-      if left == nil or left == '' then return end
-      local right = MiniSurround.user_input('Right: ')
-      if right == nil or right == '' then return end
-
-      return { vim.pesc(left) .. '().-()' .. vim.pesc(right) }
-    end,
-    output = function()
-      local left = MiniSurround.user_input('Left: ')
-      if left == nil then return end
-      local right = MiniSurround.user_input('Right: ')
-      if right == nil then return end
-      return { left = left, right = right }
-    end,
+    input = MiniSurround.gen_spec.input.user_prompt(),
+    output = MiniSurround.gen_spec.output.user_prompt(),
   },
   -- Brackets
   ['b'] = { input = { { '%b()', '%b[]', '%b{}' }, '^.().*().$' }, output = { left = '(', right = ')' } },
   -- Function call
   ['f'] = {
     input = { '%f[%w_%.][%w_%.]+%b()', '^.-%(().*()%)$' },
-    output = function()
-      local fun_name = MiniSurround.user_input('Function: ')
-      if fun_name == nil then return nil end
-      return { left = ('%s('):format(fun_name), right = ')' }
-    end,
+    output = MiniSurround.gen_spec.output.function_call(),
   },
   -- Tag
   ['t'] = {
     input = { '<(%w-)%f[^<%w][^<>]->.-</%1>', '^<.->().*()</[^/]->$' },
-    output = function()
-      local tag_full = MiniSurround.user_input('Tag: ')
-      if tag_full == nil then return nil end
-      local tag_name = tag_full:match('^%S*')
-      return { left = '<' .. tag_full .. '>', right = '</' .. tag_name .. '>' }
-    end,
+    output = MiniSurround.gen_spec.output.tag(),
   },
   -- Quotes
   ['q'] = { input = { { "'.-'", '".-"', '`.-`' }, '^.().*().$' }, output = { left = '"', right = '"' } },
